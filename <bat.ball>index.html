@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Hand Cricket 🏏</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <!-- MediaPipe Hands -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <style>
+    body {
+      background: #0f2027;
+      background: linear-gradient(120deg, #0f2027, #203a43, #2c5364);
+      color: #fff;
+      font-family: 'Poppins', sans-serif;
+      text-align: center;
+      margin: 0;
+    }
+    h1 { padding: 20px; font-weight: 600; }
+    .card {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 20px;
+      margin: 20px auto;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+    .btn {
+      background: #1f4037;
+      border: none;
+      color: white;
+      padding: 12px 24px;
+      margin: 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 600;
+      transition: background 0.3s ease;
+    }
+    .btn:hover {
+      background: #2c5364;
+    }
+    #videoWrapper { position: relative; width: 100%; max-width: 450px; margin: auto; }
+    #webcam { width: 100%; border-radius: 12px; transform: scaleX(-1); }
+    .ball {
+      display: inline-block;
+      background: rgba(255,255,255,0.2);
+      padding: 5px 10px;
+      margin: 3px;
+      border-radius: 5px;
+    }
+    #info { font-size: 1.2rem; margin-top: 10px; }
+    #scoreboard { font-size: 1.3rem; font-weight: 600; margin-top: 10px; }
+    input[type="text"] {
+      padding: 10px;
+      width: 80%;
+      border: none;
+      border-radius: 5px;
+      margin-bottom: 15px;
+      font-size: 1rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>Hand Cricket 🏏</h1>
+
+  <!-- Name input -->
+  <div id="nameSection" class="card">
+    <p>Enter your name:</p>
+    <input type="text" id="playerName" placeholder="Your name">
+    <button class="btn" onclick="startToss()">Continue</button>
+  </div>
+
+  <!-- Toss -->
+  <div id="tossSection" class="card" style="display:none;">
+    <p>Choose Head or Tail:</p>
+    <button class="btn" onclick="doToss('Head')">Head</button>
+    <button class="btn" onclick="doToss('Tail')">Tail</button>
+  </div>
+
+  <!-- Choose bat or ball -->
+  <div id="choiceSection" class="card" style="display:none;">
+    <p>You won the toss! Choose:</p>
+    <button class="btn" onclick="userChoice('Bat')">🏏 Bat</button>
+    <button class="btn" onclick="userChoice('Ball')">🎯 Ball</button>
+  </div>
+
+  <!-- Choose mode -->
+  <div id="modeSection" class="card" style="display:none;">
+    <p>Choose Game Mode:</p>
+    <button class="btn" onclick="keyboardMode()">⌨ Keyboard Mode</button>
+    <button class="btn" onclick="webcamMode()">📷 Webcam Mode</button>
+  </div>
+
+  <!-- Keyboard game -->
+  <div id="keyboardGame" class="card" style="display:none;">
+    <p>Choose a number:</p>
+    <div>
+      <button class="btn" onclick="handleTurn(1)">1️⃣</button>
+      <button class="btn" onclick="handleTurn(2)">2️⃣</button>
+      <button class="btn" onclick="handleTurn(3)">3️⃣</button>
+      <button class="btn" onclick="handleTurn(4)">4️⃣</button>
+      <button class="btn" onclick="handleTurn(5)">5️⃣</button>
+      <button class="btn" onclick="handleTurn(6)">6️⃣</button>
+    </div>
+  </div>
+
+  <!-- Webcam game -->
+  <div id="webcamGame" class="card" style="display:none;">
+    <div id="videoWrapper">
+      <video id="webcam" autoplay playsinline></video>
+    </div>
+    <p id="detectedCount">Detected: 0 ✋</p>
+    <button class="btn" onclick="captureRun()">Submit Run</button>
+    <button class="btn" onclick="quitGame()">❌ Quit</button>
+  </div>
+
+  <!-- Info and score -->
+  <div class="card">
+    <div id="info"></div>
+    <div id="scoreboard"></div>
+    <div id="history"></div>
+    <div id="wicketsInfo"></div>
+    <button id="restartBtn" class="btn" style="display:none;" onclick="restartGame()">🔄 Restart</button>
+  </div>
+
+<script>
+  let score=0,target=null,userBatting=true,innings=1;
+  let balls=0,wickets=0,ballHistory=[],wicketsTimeline=[];
+  let playerName="Player";
+  let maxBalls=12;
+  let hands=null,camera=null;
+  let lastDetectedCount=0;
+  const runEmojis={1:"🙂",2:"😎",3:"🔥",4:"🎯",5:"💪",6:"🎉","W":"😲 OUT!"};
+
+  function startToss(){
+    playerName=document.getElementById("playerName").value||"Player";
+    document.getElementById("nameSection").style.display="none";
+    document.getElementById("tossSection").style.display="block";
+  }
+  function doToss(call){
+    const toss = Math.random()<0.5 ? "Head":"Tail";
+    if(call===toss){
+      document.getElementById("tossSection").style.display="none";
+      document.getElementById("choiceSection").style.display="block";
+    }else{
+      document.getElementById("tossSection").style.display="none";
+      const compChoice=Math.random()<0.5?"Bat":"Ball";
+      alert("Computer wins toss & chooses to "+compChoice);
+      initGame(compChoice);
+    }
+  }
+  function userChoice(choice){ initGame(choice); }
+  function initGame(choice){
+    resetMatch();
+    userBatting = (choice==="Bat");
+    updateInfo();
+    document.getElementById("choiceSection").style.display="none";
+    document.getElementById("modeSection").style.display="block";
+  }
+  function resetMatch(){
+    score=0;target=null;innings=1;balls=0;wickets=0;ballHistory=[];wicketsTimeline=[];
+    document.getElementById("info").innerHTML="";
+    document.getElementById("scoreboard").innerHTML="";
+    document.getElementById("history").innerHTML="";
+    document.getElementById("wicketsInfo").innerHTML="";
+  }
+  function updateInfo(){
+    document.getElementById("info").innerHTML = "Innings "+innings+": "+
+      (userBatting?playerName+" is batting 🏏":"Computer is batting 🎯")+
+      (target?"<br>Target: "+target+" (Need "+(target-score)+")":"");
+  }
+  function keyboardMode(){
+    document.getElementById("modeSection").style.display="none";
+    document.getElementById("keyboardGame").style.display="block";
+  }
+  async function webcamMode(){
+    document.getElementById("modeSection").style.display="none";
+    document.getElementById("webcamGame").style.display="block";
+    hands = new Hands({locateFile:(file)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+    hands.setOptions({maxNumHands:1,modelComplexity:1,minDetectionConfidence:0.7,minTrackingConfidence:0.7});
+    hands.onResults(onResults);
+    const videoElement=document.getElementById('webcam');
+    camera = new Camera(videoElement,{onFrame:async()=>{ await hands.send({image:videoElement}); },width:640,height:480});
+    camera.start();
+  }
+  function onResults(results){
+    if(!results.multiHandLandmarks || results.multiHandLandmarks.length===0) return;
+    const landmarks = results.multiHandLandmarks[0];
+    const fingers = countFingers(landmarks);
+    lastDetectedCount = fingers;
+    document.getElementById("detectedCount").innerText="Detected: "+fingers+" ✋";
+  }
+  function countFingers(l){
+    let count=0;
+    if(l[8].y<l[6].y) count++;
+    if(l[12].y<l[10].y) count++;
+    if(l[16].y<l[14].y) count++;
+    if(l[20].y<l[18].y) count++;
+    if(l[4].x<l[3].x) count++;
+    return Math.min(Math.max(count,1),6);
+  }
+  function captureRun(){
+    let run = lastDetectedCount;
+    handleTurn(run);
+  }
+  function handleTurn(userRun){
+    const compRun = Math.floor(Math.random()*6)+1;
+    let runDisplay="";
+    if(userBatting){
+      if(userRun===compRun){
+        updateHistory("W");
+        if(innings===1){target=score+1;innings=2;userBatting=false;resetInnings();alert(playerName+" OUT! Target "+target);}
+        else{checkResult();}
+      }else{
+        score+=userRun;runDisplay=userRun+" "+runEmojis[userRun];
+        updateHistory(userRun);
+        if(target && score>=target){alert("You Win!");endGame();}
+      }
+    }else{
+      if(userRun===compRun){
+        updateHistory("W");
+        if(innings===1){target=score+1;innings=2;userBatting=true;resetInnings();alert("Computer OUT! Target "+target);}
+        else{checkResult();}
+      }else{
+        score+=compRun;runDisplay=compRun+" "+runEmojis[compRun];
+        updateHistory(compRun);
+        if(target && score>=target){alert("Computer Wins!");endGame();}
+      }
+    }
+    if(balls>=maxBalls && innings===1){target=score+1;innings=2;userBatting=!userBatting;resetInnings();alert("Innings Over! Target "+target);}
+    else if(balls>=maxBalls && innings===2){checkResult();}
+    updateScoreboard(runDisplay);
+  }
+  function checkResult(){
+    if(score===target-1){alert("Match Draw 🤝");}
+    else if(score>=target){alert(userBatting?"You Win!":"Computer Wins!");}
+    else{alert(userBatting?"Computer Wins!":"You Win!");}
+    endGame();
+  }
+  function updateHistory(run){
+    if(run==="W"){ballHistory.push("W");wickets++;wicketsTimeline.push(score);} 
+    else ballHistory.push(run);
+    balls++;
+    if(balls%6===0) ballHistory=[];
+    document.getElementById("history").innerHTML = "Current Over: "+ballHistory.map(b=>"<span class='ball'>"+b+"</span>").join("")+
+      "<br>Score: "+score+"/"+wickets+" ("+Math.floor(balls/6)+"."+(balls%6)+" overs)";
+    document.getElementById("wicketsInfo").innerHTML = "Wickets fell at: "+(wicketsTimeline.length?wicketsTimeline.join(", "):"None");
+  }
+  function updateScoreboard(runDisplay){
+    document.getElementById("scoreboard").innerHTML = "Score: "+score+"/"+wickets+(runDisplay?"<br><b>"+runDisplay+"</b>":"");
+  }
+  function resetInnings(){score=0;balls=0;wickets=0;ballHistory=[];wicketsTimeline=[];}
+  function endGame(){if(camera)camera.stop();document.getElementById("restartBtn").style.display="inline-block";}
+  function quitGame(){if(camera)camera.stop();restartGame();}
+  function restartGame(){
+    if(camera)camera.stop();
+    document.getElementById("nameSection").style.display="block";
+    document.getElementById("tossSection").style.display="none";
+    document.getElementById("choiceSection").style.display="none";
+    document.getElementById("modeSection").style.display="none";
+    document.getElementById("keyboardGame").style.display="none";
+    document.getElementById("webcamGame").style.display="none";
+    document.getElementById("restartBtn").style.display="none";
+    document.getElementById("info").innerHTML="";
+    document.getElementById("scoreboard").innerHTML="";
+    document.getElementById("history").innerHTML="";
+    document.getElementById("wicketsInfo").innerHTML="";
+    document.getElementById("detectedCount").innerHTML="Detected: 0 ✋";
+  }
+</script>
+</body>
+</html>
