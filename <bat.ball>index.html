@@ -10,7 +10,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
   <style>
     body {
-      background: #0f2027;
       background: linear-gradient(120deg, #0f2027, #203a43, #2c5364);
       color: #fff;
       font-family: 'Poppins', sans-serif;
@@ -39,9 +38,7 @@
       font-weight: 600;
       transition: background 0.3s ease;
     }
-    .btn:hover {
-      background: #2c5364;
-    }
+    .btn:hover { background: #2c5364; }
     #videoWrapper { position: relative; width: 100%; max-width: 450px; margin: auto; }
     #webcam { width: 100%; border-radius: 12px; transform: scaleX(-1); }
     .ball {
@@ -62,13 +59,21 @@
       font-size: 1rem;
       text-align: center;
     }
+
+    /* Animations */
+    .fade-in { animation: fadeIn 1s ease forwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+    .bounce { animation: bounce 0.8s; }
+    @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+    .flash { animation: flash 0.5s ease-in-out 2; }
+    @keyframes flash { 0% { background: rgba(255,0,0,0.3); } 100% { background: transparent; } }
   </style>
 </head>
 <body>
   <h1>Hand Cricket 🏏</h1>
 
   <!-- Name input -->
-  <div id="nameSection" class="card">
+  <div id="nameSection" class="card fade-in">
     <p>Enter your name:</p>
     <input type="text" id="playerName" placeholder="Your name">
     <button class="btn" onclick="startToss()">Continue</button>
@@ -119,7 +124,7 @@
   </div>
 
   <!-- Info and score -->
-  <div class="card">
+  <div class="card fade-in">
     <div id="info"></div>
     <div id="scoreboard"></div>
     <div id="history"></div>
@@ -141,6 +146,7 @@
     document.getElementById("nameSection").style.display="none";
     document.getElementById("tossSection").style.display="block";
   }
+
   function doToss(call){
     const toss = Math.random()<0.5 ? "Head":"Tail";
     if(call===toss){
@@ -149,11 +155,14 @@
     }else{
       document.getElementById("tossSection").style.display="none";
       const compChoice=Math.random()<0.5?"Bat":"Ball";
-      alert("Computer wins toss & chooses to "+compChoice);
+      document.getElementById("info").innerHTML="Computer wins toss & chooses to "+compChoice;
+      document.getElementById("info").classList.add("fade-in");
       initGame(compChoice);
     }
   }
+
   function userChoice(choice){ initGame(choice); }
+
   function initGame(choice){
     resetMatch();
     userBatting = (choice==="Bat");
@@ -161,6 +170,7 @@
     document.getElementById("choiceSection").style.display="none";
     document.getElementById("modeSection").style.display="block";
   }
+
   function resetMatch(){
     score=0;target=null;innings=1;balls=0;wickets=0;ballHistory=[];wicketsTimeline=[];
     document.getElementById("info").innerHTML="";
@@ -168,15 +178,18 @@
     document.getElementById("history").innerHTML="";
     document.getElementById("wicketsInfo").innerHTML="";
   }
+
   function updateInfo(){
     document.getElementById("info").innerHTML = "Innings "+innings+": "+
       (userBatting?playerName+" is batting 🏏":"Computer is batting 🎯")+
       (target?"<br>Target: "+target+" (Need "+(target-score)+")":"");
   }
+
   function keyboardMode(){
     document.getElementById("modeSection").style.display="none";
     document.getElementById("keyboardGame").style.display="block";
   }
+
   async function webcamMode(){
     document.getElementById("modeSection").style.display="none";
     document.getElementById("webcamGame").style.display="block";
@@ -187,6 +200,7 @@
     camera = new Camera(videoElement,{onFrame:async()=>{ await hands.send({image:videoElement}); },width:640,height:480});
     camera.start();
   }
+
   function onResults(results){
     if(!results.multiHandLandmarks || results.multiHandLandmarks.length===0) return;
     const landmarks = results.multiHandLandmarks[0];
@@ -194,6 +208,7 @@
     lastDetectedCount = fingers;
     document.getElementById("detectedCount").innerText="Detected: "+fingers+" ✋";
   }
+
   function countFingers(l){
     let count=0;
     if(l[8].y<l[6].y) count++;
@@ -203,44 +218,45 @@
     if(l[4].x<l[3].x) count++;
     return Math.min(Math.max(count,1),6);
   }
-  function captureRun(){
-    let run = lastDetectedCount;
-    handleTurn(run);
-  }
+
+  function captureRun(){ handleTurn(lastDetectedCount); }
+
   function handleTurn(userRun){
     const compRun = Math.floor(Math.random()*6)+1;
     let runDisplay="";
     if(userBatting){
-      if(userRun===compRun){
-        updateHistory("W");
-        if(innings===1){target=score+1;innings=2;userBatting=false;resetInnings();alert(playerName+" OUT! Target "+target);}
-        else{checkResult();}
-      }else{
-        score+=userRun;runDisplay=userRun+" "+runEmojis[userRun];
-        updateHistory(userRun);
-        if(target && score>=target){alert("You Win!");endGame();}
-      }
+      if(userRun===compRun){ handleWicket(); }
+      else { score+=userRun;runDisplay=userRun+" "+runEmojis[userRun]; updateHistory(userRun); if(target && score>=target){alert("You Win!");endGame();} }
     }else{
-      if(userRun===compRun){
-        updateHistory("W");
-        if(innings===1){target=score+1;innings=2;userBatting=true;resetInnings();alert("Computer OUT! Target "+target);}
-        else{checkResult();}
-      }else{
-        score+=compRun;runDisplay=compRun+" "+runEmojis[compRun];
-        updateHistory(compRun);
-        if(target && score>=target){alert("Computer Wins!");endGame();}
-      }
+      if(userRun===compRun){ handleWicket(); }
+      else { score+=compRun;runDisplay=compRun+" "+runEmojis[compRun]; updateHistory(compRun); if(target && score>=target){alert("Computer Wins!");endGame();} }
     }
-    if(balls>=maxBalls && innings===1){target=score+1;innings=2;userBatting=!userBatting;resetInnings();alert("Innings Over! Target "+target);}
-    else if(balls>=maxBalls && innings===2){checkResult();}
+    if(balls>=maxBalls && innings===1){ switchInnings(); }
+    else if(balls>=maxBalls && innings===2){ checkResult(); }
     updateScoreboard(runDisplay);
   }
+
+  function handleWicket(){
+    updateHistory("W");
+    document.getElementById("info").classList.add("flash");
+    setTimeout(()=>document.getElementById("info").classList.remove("flash"),600);
+    if(innings===1){ target=score+1;innings=2;userBatting=!userBatting;resetInnings();updateInfo();alert("Innings Over! Target "+target); }
+    else { checkResult(); }
+  }
+
+  function switchInnings(){
+    target=score+1;innings=2;userBatting=!userBatting;resetInnings();updateInfo();
+    document.getElementById("info").classList.add("fade-in");
+    setTimeout(()=>alert("Innings Over! Target "+target),500);
+  }
+
   function checkResult(){
     if(score===target-1){alert("Match Draw 🤝");}
     else if(score>=target){alert(userBatting?"You Win!":"Computer Wins!");}
     else{alert(userBatting?"Computer Wins!":"You Win!");}
     endGame();
   }
+
   function updateHistory(run){
     if(run==="W"){ballHistory.push("W");wickets++;wicketsTimeline.push(score);} 
     else ballHistory.push(run);
@@ -250,9 +266,14 @@
       "<br>Score: "+score+"/"+wickets+" ("+Math.floor(balls/6)+"."+(balls%6)+" overs)";
     document.getElementById("wicketsInfo").innerHTML = "Wickets fell at: "+(wicketsTimeline.length?wicketsTimeline.join(", "):"None");
   }
+
   function updateScoreboard(runDisplay){
-    document.getElementById("scoreboard").innerHTML = "Score: "+score+"/"+wickets+(runDisplay?"<br><b>"+runDisplay+"</b>":"");
+    const scoreEl=document.getElementById("scoreboard");
+    scoreEl.innerHTML = "Score: "+score+"/"+wickets+(runDisplay?"<br><b>"+runDisplay+"</b>":"");
+    scoreEl.classList.add("bounce");
+    setTimeout(()=>scoreEl.classList.remove("bounce"),500);
   }
+
   function resetInnings(){score=0;balls=0;wickets=0;ballHistory=[];wicketsTimeline=[];}
   function endGame(){if(camera)camera.stop();document.getElementById("restartBtn").style.display="inline-block";}
   function quitGame(){if(camera)camera.stop();restartGame();}
